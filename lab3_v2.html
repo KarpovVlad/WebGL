@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Куб з різними кольорами граней</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Розміри сцени
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        // Створення сцени та перспективної камери
+        const scene = new THREE.Scene();
+        //const camera = new THREE.OrthographicCamera(width / -2, width / 2, height / 2, height / -2, 1, 1000); //ортогональна проекція
+        const camera = new THREE.PerspectiveCamera(75, width / height, 1, 1000); //перспективна проекція
+
+        // Установка камери на потрібну відстань
+        camera.position.z = 500;
+
+        // Створення WebGL рендерера
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(width, height);
+        document.body.appendChild(renderer.domElement);
+
+        // Створення куба
+        const geometry = new THREE.BoxGeometry(100, 100, 100);
+        
+        // Створення матеріалів для кожної грані куба
+        const materials = [
+            new THREE.MeshBasicMaterial({ color: 0xff0000 }), // червоний
+            new THREE.MeshBasicMaterial({ color: 0x00ff00 }), // зелений
+            new THREE.MeshBasicMaterial({ color: 0x0000ff }), // синій
+            new THREE.MeshBasicMaterial({ color: 0xffff00 }), // жовтий
+            new THREE.MeshBasicMaterial({ color: 0xff00ff }), // малиновий
+            new THREE.MeshBasicMaterial({ color: 0x00ffff }) // блакитний
+            ];
+    const faceMaterial = new THREE.MeshFaceMaterial(materials);
+    const cube = new THREE.Mesh(geometry, faceMaterial);
+    scene.add(cube);
+
+    // Функція анімації
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Обертання куба
+        cube.rotation.x += 0.01;
+        cube.rotation.y += 0.01;
+
+        renderer.render(scene, camera);
+    }
+
+    animate();
+</script>
