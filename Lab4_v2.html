@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL куб без Three.js</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="webglCanvas"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.4.0/gl-matrix-min.js"></script>
+    <script>
+        const canvas = document.getElementById('webglCanvas');
+        const gl = canvas.getContext('webgl');
+        
+        if (!gl) {
+            alert('Ваш браузер не підтримує WebGL.');
+        }
+
+        // Вершинний шейдер
+        const vertexShaderSource = `
+    attribute vec4 a_position;
+    attribute vec3 a_normal;
+    uniform mat4 u_projection;
+    uniform mat4 u_view;
+    uniform mat4 u_model;
+    varying vec3 v_normal;
+    varying vec3 v_surfaceToLight;
+    void main() {
+        vec4 worldPosition = u_model * a_position;
+        gl_Position = u_projection * u_view * worldPosition;
+        v_normal = mat3(u_model) * a_normal;
+        v_surfaceToLight = vec3(10, 10, 10) - worldPosition.xyz;
+    }
+`;
+
+        // Фрагментний шейдер
+        const fragmentShaderSource = `
+    precision mediump float;
+    varying vec3 v_normal;
+    varying vec3 v_surfaceToLight;
+    void main() {
+        vec3 normal = normalize(v_normal);
+        vec3 surfaceToLight = normalize(v_surfaceToLight);
+        float brightness = dot(normal, surfaceToLight);
+        brightness = abs(brightness);
+        brightness = clamp(brightness, 0.2, 1.0);
+        gl_FragColor = vec4(vec3(0, 1, 0) * brightness, 1);
+    }
+`;
+
+        // Компіляція шейдерів
+function createShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+    }
+    return shader;
+}
+
+// Створення програми
+function createProgram(gl, vertexShader, fragmentShader) {
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error(gl.getProgramInfoLog(program));
+        gl.deleteProgram(program);
+        return null;
+    }
+    return program;
+}
+
+// Компіляція шейдерів та створення програми
+const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+const program = createProgram(gl, vertexShader, fragmentShader);
+gl.useProgram(program);
+
+// Створення та налаштування буферів вершин та індексів
+const vertices = new Float32Array([
+    // передня грань
+    -1, -1, 1, 0, 0, 1,
+    1, -1, 1, 0, 0, 1,
+    1, 1, 1, 0, 0, 1,
+    -1, 1, 1, 0, 0, 1,
+    // задня грань
+    -1, -1, -1, 0, 0, -1,
+    1, -1, -1, 0, 0, -1,
+    1, 1, -1, 0, 0, -1,
+    -1, 1, -1, 0, 0, -1
+]);
+
+const indices = new Uint16Array([
+    // передня грань
+    0, 1, 2, 0, 2, 3,
+    // права грань
+    1, 5, 6, 1, 6, 2,
+    // задня грань
+    5, 4, 7, 5, 7, 6,
+    // ліва грань
+    4, 0, 3, 4, 3, 7,
+    // верхня грань
+    3, 2, 6, 3, 6, 7,
+    // нижня грань
+    4, 5, 1, 4, 1, 0
+]);
+
+const vertexBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+const indexBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+// Створення матриць проекції, виду та моделі
+const projectionMatrix = mat4.create();
+mat4.perspective(projectionMatrix, Math.PI / 4, canvas.width / canvas.height, 0.1, 100);
+
+const viewMatrix = mat4.create();
+mat4.lookAt(viewMatrix, [0, 0, 5], [0, 0, 0], [0, 1, 0]);
+
+const modelMatrix = mat4.create();
+
+// Анімація обертання куба
+let rotation = 0;
+
+function animate() {
+    rotation += 0.01;
+    mat4.identity(modelMatrix);
+    mat4.rotateY(modelMatrix, modelMatrix, rotation);
+    mat4.rotateX(modelMatrix, modelMatrix, rotation * 0.5);
+
+    render();
+
+    requestAnimationFrame(animate);
+}
+
+// Рендеринг куба
+function render() {
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    // Налаштування атрибутів вершин
+    const positionLocation = gl.getAttribLocation(program, 'a_position');
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 6 * Float32Array.BYTES_PER_ELEMENT, 0);
+
+    const normalLocation = gl.getAttribLocation(program, 'a_normal');
+    gl.enableVertexAttribArray(normalLocation);
+    gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 6 * Float32Array.BYTES_PER_ELEMENT, 3 * Float32Array.BYTES_PER_ELEMENT);
+
+    // Застосування матриць
+    const projectionLocation = gl.getUniformLocation(program, 'u_projection');
+    gl.uniformMatrix4fv(projectionLocation, false, projectionMatrix);
+
+    const viewLocation = gl.getUniformLocation(program, 'u_view');
+    gl.uniformMatrix4fv(viewLocation, false, viewMatrix);
+
+    const modelLocation = gl.getUniformLocation(program, 'u_model');
+    gl.uniformMatrix4fv(modelLocation, false, modelMatrix);
+
+    // Рендеринг
+    gl.enable(gl.DEPTH_TEST);
+    gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+}
+
+// Запуск анімації
+animate();
+</script>
+</body>
+</html>

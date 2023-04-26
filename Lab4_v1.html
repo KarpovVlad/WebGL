@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebGL Example</title>
+  <style>
+    canvas {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="webgl-canvas"></canvas>
+  <script src="https://cdn.jsdelivr.net/npm/gl-matrix@2.4.0/dist/gl-matrix.js"></script>
+  <script>
+    const canvas = document.getElementById("webgl-canvas");
+    const gl = canvas.getContext("webgl");
+
+    if (!gl) {
+      alert("WebGL не підтримується");
+    }
+
+    const vertexShaderSource = `
+attribute vec4 aVertexPosition;
+attribute vec3 aVertexNormal;
+uniform mat4 uNormalMatrix;
+uniform mat4 uModelViewMatrix;
+uniform mat4 uProjectionMatrix;
+varying highp vec3 vLighting;
+void main(void) {
+  gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+  highp vec3 ambientLight = vec3(0.5, 0.5, 0.5);
+  highp vec3 directionalLightColor = vec3(0.3, 0.5, 0.5);
+  highp vec3 directionalVector = normalize(vec3(0.1, 0.1, 0.1));
+  highp vec4 transformedNormal = uNormalMatrix * vec4(aVertexNormal, 1.0);
+  highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
+  vLighting = ambientLight + (directionalLightColor * directional);
+}
+`;
+
+    const fragmentShaderSource = `
+varying highp vec3 vLighting;
+void main(void) {
+  highp vec4 texelColor = vec4(1.0, 1.0, 1.0, 1.0);
+  gl_FragColor = vec4(texelColor.rgb * vLighting, texelColor.a);
+}
+`;
+
+    const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShader, vertexShaderSource);
+    gl.compileShader(vertexShader);
+
+    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fragmentShader, fragmentShaderSource);
+    gl.compileShader(fragmentShader);
+
+    const shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, vertexShader);
+    gl.attachShader(shaderProgram, fragmentShader);
+    gl.linkProgram(shaderProgram);
+
+    gl.clearColor(0.5, 0.5, 0.5, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    const vertices = new Float32Array([
+      // вершина 1
+      0.0,  0.5,  0.0, // координати
+      0.0,  0.0,  1.0, // нормаль
+      // вершина 2
+      -0.5, -0.5,  0.0, // координати
+      0.0,  0.0,  1.0, // нормаль
+      // вершина 3
+      0.5, -0.5,  0.0, // координати
+      0.0,  0.0,  1.0, // нормаль
+    ]);
+
+const vertexBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+function resizeCanvasToDisplaySize(canvas) {
+  const displayWidth = Math.floor(canvas.clientWidth);
+  const displayHeight = Math.floor(canvas.clientHeight);
+
+  if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+    canvas.width = displayWidth;
+    canvas.height = displayHeight;
+  }
+}
+
+function renderScene() {
+  resizeCanvasToDisplaySize(canvas);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+
+  gl.useProgram(shaderProgram);
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+
+  const positionAttributeLocation = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+  gl.enableVertexAttribArray(positionAttributeLocation);
+  gl.vertexAttribPointer(positionAttributeLocation, 3, gl.FLOAT, false, 6 * Float32Array.BYTES_PER_ELEMENT, 0);
+
+  const normalAttributeLocation = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+  gl.enableVertexAttribArray(normalAttributeLocation);
+  gl.vertexAttribPointer(normalAttributeLocation, 3, gl.FLOAT, false, 6 * Float32Array.BYTES_PER_ELEMENT, 3 * Float32Array.BYTES_PER_ELEMENT);
+
+  const uModelViewMatrixLocation = gl.getUniformLocation(shaderProgram, "uModelViewMatrix");
+  const uProjectionMatrixLocation = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
+  const uNormalMatrixLocation = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
+
+  const modelViewMatrix = mat4.create();
+  const projectionMatrix = mat4.create();
+  const normalMatrix = mat4.create();
+
+  mat4.perspective(projectionMatrix, 45 * Math.PI / 180, canvas.width / canvas.height, 0.1, 100);
+  mat4.translate(modelViewMatrix, modelViewMatrix, [0, 0, -3]);
+  mat4.invert(normalMatrix, modelViewMatrix);
+  mat4.transpose(normalMatrix, normalMatrix);
+
+  gl.uniformMatrix4fv(uModelViewMatrixLocation, false, modelViewMatrix);
+  gl.uniformMatrix4fv(uProjectionMatrixLocation, false, projectionMatrix);
+  gl.uniformMatrix4fv(uNormalMatrixLocation, false, normalMatrix);
+
+  gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 6);
+}
+
+renderScene();
+</script>
+</body>
+</html>
